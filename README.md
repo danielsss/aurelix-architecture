@@ -1,17 +1,21 @@
 # Aurelix Architecture
 
-[Control capabilities — current homepage](https://danielsss.github.io/aurelix-architecture/)
+[System overview — homepage](https://danielsss.github.io/aurelix-architecture/)
 
-The homepage maps Control capabilities from source commit `8cd7effb45d21e58dae78894695bcbc47b3b7b15`, inspected on November 23, 2026. It covers administrator and account access, node lifecycle, protocols and certificates, plans and entitlements, subscriptions, and background coordination. The diagram includes source references, API entry points, execution conditions and known implementation limits.
+The homepage is the system architecture, updated on November 23, 2026. Click **Control** in the diagram to open its detailed capabilities map; the child page provides a Back control when opened from the overview.
 
-## Historical overview
+## Diagrams
 
-[System architecture — November 19, 2026 snapshot](https://danielsss.github.io/aurelix-architecture/architecture-2026-11-19.html)
+- [Current system overview](https://danielsss.github.io/aurelix-architecture/): Web, Control, MongoDB, Redis, Node Agent, local state, Xray, subscriptions, SSH/Docker maintenance, and optional DNS/ACME integration.
+- [Control capabilities](https://danielsss.github.io/aurelix-architecture/control-functions.html?from=index.html): the detailed feature snapshot from source commit `8cd7effb45d21e58dae78894695bcbc47b3b7b15`.
+- [Historical system overview — November 19](https://danielsss.github.io/aurelix-architecture/architecture-2026-11-19.html): retained for history; its HTTP status-reporting path is obsolete.
 
-The historical overview includes working-tree changes present when it was generated. It does not reflect later changes: notably, Control/Agent communication now uses Socket.IO for status reports as well as management commands; HTTP status reporting in that older diagram is obsolete. Subscriptions, campaigns, certificates, Docker installation and Agent updates have also been added since that snapshot.
+## Evidence and limits
 
-## Scope and publishing
+The current overview describes the November 23 working tree based on application commit `3593b21f66886d7576ecb101a9e8eca000f65e50`, including uncommitted certificate/environment configuration and node SSH selection changes at capture time. Evidence was checked against a separate local snapshot; its revision is not an application release commit. The older Control detail retains its original source pin; later SSH key-library and certificate-environment changes are described in the current overview.
 
-These standalone HTML pages describe static source-code snapshots, not live application state or proof of production deployment. The current diagram passed source, structure and automated browser checks. Source references point to the private application repository and require appropriate GitHub access; application source code, credentials and local evidence snapshots are not published here.
+Both current pages were generated with Archify 3.3.0 and passed source, structure and automated browser checks. They describe static code snapshots, not live application state or production acceptance. Application source code, credentials, local source snapshots and diagnostic reports are not published here. Source paths are references; access to the private application repository remains separate.
 
-GitHub Pages serves the root of the `main` branch. Update `index.html` and push to `main` to publish a new homepage. Preserve older diagrams under dated filenames. `.nojekyll` disables Jekyll processing.
+## Publishing
+
+GitHub Pages serves the root of `main`. Publish the system overview as `index.html`, its Control child as `control-functions.html`, and retain historical snapshots under dated filenames. Keep the Control node link and the child return path working. `.nojekyll` disables Jekyll processing.
