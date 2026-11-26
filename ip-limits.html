@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>套餐 IP 限制 · Aurelix Architecture</title>
+  <link rel="stylesheet" href="ip-limits.css">
+  <script src="ip-limits.js" defer></script>
+</head>
+<body>
+  <main>
+    <nav class="page-nav" aria-label="页面导航">
+      <a href="index.html">← 返回总体架构</a>
+      <button id="theme-toggle" type="button">切换浅色</button>
+    </nav>
+    <header>
+      <p class="eyebrow">Aurelix · Control / Agent / Xray</p>
+      <h1>套餐 IP 限制</h1>
+      <p class="lead">Control 汇总各节点的来源 IP，为每份用户套餐保留名额；持续超限后，先保存决定，再下发规则并确认生效。</p>
+      <p class="scope">本页说明 2026-11-26 确认的方案与未提交实现，不代表线上已启用。主页仍保留原有架构快照。</p>
+    </header>
+    <section class="timing" aria-label="时间与观测口径">
+      <p><strong>30 秒</strong><span>Agent 独立采集</span></p>
+      <p><strong>60 秒</strong><span>超额 IP 宽限</span></p>
+      <p><strong>5 分钟</strong><span>Redis 数据清理</span></p>
+      <p><strong>90 秒</strong><span>超过则观测未知</span></p>
+    </section>
+    <section class="panel scenarios" aria-labelledby="scenario-heading">
+      <div class="section-heading"><h2 id="scenario-heading">上限为 2，A、B、C 如何处理</h2><span>示例 IP，非生产数据</span></div>
+      <div class="scenario-tabs" role="tablist" aria-label="选择 IP 限制场景">
+        <button id="tab-normal" role="tab" aria-controls="scenario-panel" data-case="normal" aria-selected="true">正常在线</button>
+        <button id="tab-release" role="tab" aria-controls="scenario-panel" data-case="release" aria-selected="false" tabindex="-1">宽限内退出</button>
+        <button id="tab-blocked" role="tab" aria-controls="scenario-panel" data-case="blocked" aria-selected="false" tabindex="-1">持续超限</button>
+        <button id="tab-missing" role="tab" aria-controls="scenario-panel" data-case="missing" aria-selected="false" tabindex="-1">节点失联</button>
+      </div>
+      <div id="scenario-panel" role="tabpanel" aria-labelledby="tab-normal" tabindex="0">
+        <h3 id="scenario-title">正常在线</h3>
+        <p id="scenario-description"></p>
+        <div class="case-table-scroll">
+          <table>
+            <thead><tr><th>条件 / 时刻</th><th>名额内 IP</th><th>宽限 IP</th><th>阻断决定</th><th>节点执行</th></tr></thead>
+            <tbody id="scenario-rows"></tbody>
+          </table>
+        </div>
+        <p id="scenario-result" class="result" aria-live="polite"></p>
+      </div>
+      <noscript>场景切换需要 JavaScript。上限为 2 时，A、B 先占名额，C 超额进入 60 秒宽限。A 退出且 C 仍在线则 C 补位；A、C 同时退出则只保留 B。持续超限且有完整新采样确认后阻断 C；观测未知不新增封禁或释放名额。</noscript>
+    </section>
+    <section class="panel flow" aria-labelledby="flow-heading">
+      <div class="section-heading"><h2 id="flow-heading">从采集到确认的完整流程</h2><a href="ip-limits-flow.html?from=ip-limits.html">打开交互图与导出 ↗</a></div>
+      <iframe id="ip-flow" src="ip-limits-flow.html?embed=1&amp;theme=dark" title="IP 限制：Agent 采集、Control 判断、MongoDB 持久化、节点应用与确认"></iframe>
+    </section>
+    <section class="notes" aria-label="关键边界">
+      <article><h2>统计与限制的口径不同</h2><p>在线设备页面按套餐汇总所有购买者并对 IP 去重；限制为每位用户的套餐实例独立分配名额，跨节点与协议合并。同一公网出口可能对应多台物理设备，IP 数不等于真实硬件数量。</p></article>
+      <article><h2>Redis 与 MongoDB 各保存什么</h2><p>Redis 保存节点观测：非空成功快照替换并重置 300 秒 TTL；成功空快照删除数据 key、元数据保留“确认空”；失败不续期旧数据。MongoDB 保存允许、宽限、阻断 IP 和节点目标及确认，仅在状态变化时写入。</p></article>
+      <article><h2>下发不等于已生效</h2><p>规则按“用户 email AND 来源 IP”匹配并路由到 blackhole。Control 收到健康且 revision 匹配的配置结果后才确认应用；节点离线保留待应用或待撤销。首次补齐 Xray 管理配置可能需要重启，后续纯路由变更可动态应用。</p></article>
+      <article><h2>撤销与现有连接</h2><p>被阻断 IP 消失可能是规则造成，不能据此解封。真实空位、提高上限、不再限制或授权失效等条件触发撤销，仍须先持久化再下发。阻断限制新连接，不能保证立即终止已有长连接。</p></article>
+    </section>
+    <footer>说明页面不调用管理 API，也不操作节点。<a href="ip-limits.workflow.json">流程图规格 JSON</a></footer>
+  </main>
+</body>
+</html>

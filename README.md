@@ -10,6 +10,7 @@ The homepage remains the overall architecture. Its **Control** node opens the op
 - [Control operations and mechanisms](https://danielsss.github.io/aurelix-architecture/control-functions.html?from=index.html): November 25 guide with 26 operations and 82 steps. Search or select one operation, then inspect its execution, state boundary, Xray impact, completion evidence, failure diagnosis and pinned source references. The default operation explains adding a server.
 - [Configuration application sequence](https://danielsss.github.io/aurelix-architecture/control-config-sequence.html): Dashboard, Control, MongoDB, Agent and Xray interactions. Save / acceptance, final ACK, independent status reporting and page polling are distinguished.
 - [Node Agent architecture](https://danielsss.github.io/aurelix-architecture/agent-architecture.html): retained November 24 responsibilities, five events, execution, retries, recovery, runtime adapters, local state and SQLite usage outbox.
+- [Plan IP limits](https://danielsss.github.io/aurelix-architecture/ip-limits.html?from=index.html): November 26 workflow with collection, Redis snapshots, per-membership limits, 60-second grace, MongoDB decisions, application confirmation and four selectable cases. The native interactive diagram is `ip-limits-flow.html`; deploy `ip-limits.css` and `ip-limits.js` with the reader. Its editable specification is `ip-limits.workflow.json`.
 - [Historical overview — November 19](https://danielsss.github.io/aurelix-architecture/architecture-2026-11-19.html): retained history; its HTTP status-reporting path is obsolete.
 
 ## Evidence and limits
@@ -22,8 +23,10 @@ The Agent detail uses the same application commit. The overall diagram retains i
 
 The configuration sequence passed Archify 3.3.0 source, structure, provenance and automated browser checks. The custom guide passed JavaScript syntax, local-link and source-reference checks; all 26 operation selections and their last steps were exercised in a browser. Desktop and mobile reading layouts were inspected. Application source, credentials, source snapshots and diagnostic receipts are not published.
 
+The IP-limit workflow describes the agreed design and the uncommitted November 26 application worktree. It is not pinned to an application commit and does not establish production availability. The homepage retains its existing geometry and source snapshot; only a Control navigation link and a navigation explanation were added. The new flow distinguishes plan-wide display statistics from enforcement for each purchaser’s membership instance.
+
 ## Publishing
 
-GitHub Pages serves `/` from `main`. Keep `index.html` as the overall architecture and preserve the existing Control and Agent destinations. The guide uses `control-guide.css`, `control-guide.js` and `control-data.js`; deploy them together with `control-functions.html`. The supplementary diagram is `control-config-sequence.html`. `.nojekyll` disables Jekyll.
+GitHub Pages serves `/` from `main`. Keep `index.html` as the overall architecture and preserve the existing Control and Agent destinations. The guide uses `control-guide.css`, `control-guide.js` and `control-data.js`; deploy them together with `control-functions.html`. The supplementary diagram is `control-config-sequence.html`. Deploy `ip-limits.html`, `ip-limits.css`, `ip-limits.js`, `ip-limits-flow.html` and `ip-limits.workflow.json` together for the IP-limit reader. `.nojekyll` disables Jekyll.
 
 The custom guide's reading layout was adapted using [unslop by Damir Sokolovsky](https://heydamir.design/unslop), licensed under CC BY 4.0. Native diagrams are generated with [Archify](https://github.com/tt-a1i/archify).

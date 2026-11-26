@@ -1,0 +1,330 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "套餐 IP 限制｜采集、宽限与阻断",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "ip-limits-flow.html",
+    "parentHref": "ip-limits.html",
+    "views": [
+      {
+        "id": "observe",
+        "label": "采集与口径",
+        "focus": [
+          "collect",
+          "receive",
+          "snapshot",
+          "union"
+        ],
+        "note": "每 30 秒采集；Redis 快照不是设备身份。统计按套餐汇总，限制按每份用户套餐独立计算。"
+      },
+      {
+        "id": "normal-case",
+        "label": "① A、B 正常在线",
+        "focus": [
+          "union",
+          "admit",
+          "persist"
+        ],
+        "note": "示例上限为 2：A、B 已占名额且仍在线；无超额候选，不新增阻断。"
+      },
+      {
+        "id": "release-case",
+        "label": "② 宽限内退出",
+        "focus": [
+          "union",
+          "admit",
+          "grace",
+          "persist"
+        ],
+        "note": "C 超额后进入 60 秒宽限。A 退出且 C 仍在线，C 补位；A、C 同时退出则只保留 B。"
+      },
+      {
+        "id": "block-case",
+        "label": "③ 持续超限",
+        "focus": [
+          "grace",
+          "persist",
+          "publish",
+          "apply",
+          "confirm"
+        ],
+        "note": "C 超额满 60 秒，且完整采样时间覆盖宽限终点，才持久化阻断并下发；已有长连接可能保留。"
+      },
+      {
+        "id": "missing-case",
+        "label": "④ 节点失联",
+        "focus": [
+          "snapshot",
+          "union",
+          "unknown",
+          "persist",
+          "publish"
+        ],
+        "note": "观测不完整或超过 90 秒视为未知；不新增封禁、不释放名额。已存决定继续协调，离线节点保留待确认。"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "observe",
+      "label": "采集与缓存"
+    },
+    {
+      "id": "decide",
+      "label": "Control 判断与存储"
+    },
+    {
+      "id": "enforce",
+      "label": "配置执行与确认"
+    }
+  ],
+  "mainPath": [
+    "collect",
+    "receive",
+    "snapshot",
+    "union",
+    "grace",
+    "persist",
+    "publish",
+    "apply",
+    "confirm"
+  ],
+  "nodes": [
+    {
+      "id": "collect",
+      "lane": "observe",
+      "col": 0,
+      "type": "backend",
+      "label": "Agent 采集",
+      "sublabel": "每 30 秒 · Xray 在线 IP",
+      "width": 170,
+      "explanation": "Agent 独立调用 GetUsersStats，采集所有用户的 IP 集合。成功空列表为 []，失败为 null；采样失败不伪装成无人在线。独立于 IP 上限是否设置。"
+    },
+    {
+      "id": "receive",
+      "lane": "observe",
+      "col": 1,
+      "type": "backend",
+      "label": "Control 接收",
+      "sublabel": "Socket.IO · 序号与 ACK",
+      "width": 170,
+      "explanation": "接收 agent:online-ips:report，用 Socket 鉴权确定节点身份。采集时间、连接代际与序号控制新鲜度和顺序；重复报告不续期，旧报告不覆盖新状态。"
+    },
+    {
+      "id": "snapshot",
+      "lane": "observe",
+      "col": 2,
+      "type": "database",
+      "label": "Control 写 Redis",
+      "sublabel": "节点全量快照 · TTL 300 秒",
+      "width": 170,
+      "explanation": "Control 按节点原子替换成功快照。非空成功报告重置 300 秒 TTL；成功空报告删除数据 key，接收元数据保留“确认空”。失败报告不续期旧数据。数据和接收时间超过 90 秒不参与当前观测。TTL 是清理期限，不是离线判定。"
+    },
+    {
+      "id": "unknown",
+      "lane": "decide",
+      "col": 1,
+      "type": "security",
+      "label": "保留原有决定",
+      "sublabel": "未知 ≠ 零 · 等待新观测",
+      "width": 170,
+      "explanation": "相关节点缺失、采集失败或观测过期时，不新增阻断、不释放名额；缓存失效不等于用户退出。已有 MongoDB 决定仍可协调到节点。没有可信观测时，不凭缓存消失撤销封禁。"
+    },
+    {
+      "id": "union",
+      "lane": "decide",
+      "col": 2,
+      "type": "backend",
+      "label": "Control 跨节点合并",
+      "sublabel": "用户套餐实例 · IP 去重",
+      "width": 170,
+      "explanation": "按当前节点池和未完成撤销的绑定汇总各节点与协议的来源 IP，完整覆盖才作新增限制决定。每份用户套餐独立拥有名额；不同购买者不共享配额。在线设备页面另按套餐模板汇总所有购买者并去重，一个 IP 只是一个设备估计。"
+    },
+    {
+      "id": "admit",
+      "lane": "decide",
+      "col": 3,
+      "type": "backend",
+      "label": "保留与补位",
+      "sublabel": "只给仍在线候选名额",
+      "width": 170,
+      "explanation": "保留先占名额且仍在线的 IP。A 退出、C 仍在线时 C 补位；A 和 C 同时退出时只保留 B。未超限不新增阻断；真实空余名额、提高上限或不限额等条件可以触发撤销，撤销同样要持久化并下发。",
+      "yOffset": -80
+    },
+    {
+      "id": "grace",
+      "lane": "decide",
+      "col": 3,
+      "type": "security",
+      "label": "超额候选宽限",
+      "sublabel": "60 秒 · 重复报告不重置",
+      "width": 170,
+      "explanation": "例如上限为 2，A、B 在线，C 首次成为超额候选时记录宽限开始时间。只有 60 秒到期并有完整采样时间覆盖宽限终点，才决定阻断。采样与下发存在延迟，并非第 60 秒精准断开。",
+      "yOffset": 80
+    },
+    {
+      "id": "persist",
+      "lane": "decide",
+      "col": 4,
+      "type": "database",
+      "label": "Control 写 MongoDB",
+      "sublabel": "先持久化 · 仅状态变化",
+      "width": 170,
+      "explanation": "每份用户套餐保存允许、宽限、阻断 IP 及节点目标 revision 和确认状态，条件更新版本防冲突。仅状态变化写入，不持久化全量观测。成功保存决定后才发布配置；不用 MongoDB TTL 删除待撤销规则。",
+      "yOffset": 80
+    },
+    {
+      "id": "publish",
+      "lane": "enforce",
+      "col": 4,
+      "type": "backend",
+      "label": "Control 发布配置",
+      "sublabel": "完整配置 · 目标 revision",
+      "width": 170,
+      "explanation": "Control 读取已持久决定，为相关节点生成“Xray 用户 email AND 来源 IP”的路由规则，置于普通路由前，保留其他规则。旧 Agent 缺少 ip-limits-v1 时保持待处理；离线节点待重连。撤销也发布新的完整配置。"
+    },
+    {
+      "id": "apply",
+      "lane": "enforce",
+      "col": 5,
+      "type": "security",
+      "label": "Agent 应用到 Xray",
+      "sublabel": "用户 AND IP → blackhole",
+      "width": 170,
+      "explanation": "Agent 先写入完整配置，再经私有 RoutingService 应用规则。首次补齐管理配置可能重启 Xray；后续纯路由差异可动态替换。匹配的是指定用户和来源 IP，不是主机级封禁整个公网 IP；限制新增连接，不保证终止已有长连接。",
+      "yOffset": -70
+    },
+    {
+      "id": "confirm",
+      "lane": "enforce",
+      "col": 5,
+      "type": "backend",
+      "label": "Control 核对确认",
+      "sublabel": "健康 ACK · 生效 revision",
+      "width": 170,
+      "explanation": "Agent 经现有配置协议回报结果；Control 仅在健康、无错误且 appliedRevision 匹配目标时记录已应用。下发成功和规则生效分别表达，过时 ACK 不能确认新目标；节点不可用保留待应用或待撤销状态。",
+      "yOffset": 70
+    }
+  ],
+  "edges": [
+    {
+      "id": "report",
+      "from": "collect",
+      "to": "receive",
+      "label": "上报",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cache",
+      "from": "receive",
+      "to": "snapshot",
+      "label": "全量替换"
+    },
+    {
+      "id": "read",
+      "from": "snapshot",
+      "to": "union",
+      "label": "读取快照"
+    },
+    {
+      "id": "missing",
+      "from": "union",
+      "to": "unknown",
+      "label": "不完整",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "free",
+      "from": "union",
+      "to": "admit",
+      "label": "名额可用",
+      "role": "branch"
+    },
+    {
+      "id": "excess",
+      "from": "union",
+      "to": "grace",
+      "label": "超额",
+      "variant": "security",
+      "role": "branch"
+    },
+    {
+      "id": "allow-save",
+      "from": "admit",
+      "to": "persist",
+      "label": "状态变化"
+    },
+    {
+      "id": "grace-save",
+      "from": "grace",
+      "to": "persist",
+      "label": "宽限或阻断状态",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "durable",
+      "from": "persist",
+      "to": "publish",
+      "label": "保存成功后",
+      "variant": "emphasis"
+    },
+    {
+      "id": "desired",
+      "from": "publish",
+      "to": "apply",
+      "label": "配置下发",
+      "variant": "security",
+      "role": "async"
+    },
+    {
+      "id": "ack",
+      "from": "apply",
+      "to": "confirm",
+      "label": "返回结果",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "两个统计口径",
+      "items": [
+        "在线设备页：按套餐模板汇总所有购买者，对来源 IP 去重。",
+        "上限执行：每位用户的套餐实例独立计数，跨节点与协议去重。",
+        "同一公网出口可能对应多台真实设备；支持第三方客户端时不等于硬件设备限制。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "示例：上限 2，A／B／C",
+      "items": [
+        "A、B 在线，C 加入：C 开始宽限；再次上报不重置。",
+        "宽限内 A 退出且 C 仍在线：C 补位；A、C 同时退出则只剩 B。",
+        "持续超限且新鲜完整观测覆盖宽限终点：阻断 C 的新连接。"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "撤销与故障边界",
+      "items": [
+        "被阻断 IP 消失可能是规则造成，不能据此自行解封。",
+        "有真实空位、提高上限、不再限制或授权失效等条件时，先存撤销决定再发配置。",
+        "Redis 只存观测；MongoDB 保留决定和节点确认。未知观测不作零处理。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "版本与阅读范围",
+      "items": [
+        "本页依据本次确认方案及 2026-11-26 未提交工作区实现整理，不代表线上已启用。",
+        "不为未提交代码伪造 Git 提交引用；总览、Control 与 Agent 旧页仍保留原快照说明。",
+        "时长是采集与策略配置；A、B、C 为说明场景，不是生产测量。"
+      ]
+    }
+  ]
+}
